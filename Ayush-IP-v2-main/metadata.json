@@ -1,0 +1,8 @@
+{
+  "name": "AyushIP",
+  "description": "A multilingual, RAG-based AI assistant for Intellectual Property and regulatory guidance in Ayurveda.",
+  "name": "IP-SAKTI Sahayak",
+  "description": "A multilingual, RAG-based AI assistant for Intellectual Property and regulatory guidance in AYUSH.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

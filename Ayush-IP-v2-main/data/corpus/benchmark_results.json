@@ -1,0 +1,27 @@
+{
+  "corpus_size": {
+    "parent_docs": 19,
+    "child_chunks": 383,
+    "total_chars": 138305
+  },
+  "response_time": {
+    "average_seconds": 8.06,
+    "median_seconds": 7.43,
+    "abstention_average_seconds": 0.31
+  },
+  "retrieval_accuracy": {
+    "passed": 9,
+    "total": 10,
+    "percentage": 90.0
+  },
+  "abstention_rate": {
+    "passed": 10,
+    "total": 10,
+    "percentage": 100.0
+  },
+  "guardrail_accuracy": {
+    "passed": 8,
+    "total": 8,
+    "percentage": 100.0
+  }
+}
