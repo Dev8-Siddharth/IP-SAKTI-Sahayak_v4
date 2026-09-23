@@ -9,6 +9,7 @@ import { spawn } from "child_process";
 
 dotenv.config();
 
+const RAG_BACKEND_URL = process.env.RAG_BACKEND_URL || "http://127.0.0.1:8000";
 // Determine listening port: Railway passes the assigned public port in PORT
 const PORT = Number(process.env.PORT || process.env.FRONTEND_PORT || process.env.VITE_PORT || 3000);
 
@@ -262,6 +263,8 @@ async function startSarvamVoiceSession(clientWs: any, language: string, jurisdic
 
 async function startServer() {
   const app = express();
+  // Frontend runs on port 3000 by default; avoids colliding with Python backend on 8000
+  const PORT = Number(process.env.FRONTEND_PORT || process.env.VITE_PORT || (process.env.PORT && process.env.PORT !== "8000" ? process.env.PORT : 3000));
   const server = http.createServer(app);
 
   // WebSocket Server for Live Voice Assistant
@@ -383,6 +386,7 @@ RULES:
 
   app.use(express.json());
 
+  const RAG_BACKEND_URL = process.env.RAG_BACKEND_URL || "http://127.0.0.1:8000";
   app.get("/api/health", async (req, res) => {
     let backendOk = false;
     try {
