@@ -5,10 +5,16 @@ import { GoogleGenAI, Type, Modality, LiveServerMessage } from "@google/genai";
 import { WebSocketServer } from "ws";
 import http from "http";
 import dotenv from "dotenv";
+import { spawn } from "child_process";
 
 dotenv.config();
 
-const RAG_BACKEND_URL = process.env.RAG_BACKEND_URL || "http://127.0.0.1:8000";
+// Determine listening port: Railway passes the assigned public port in PORT
+const PORT = Number(process.env.PORT || process.env.FRONTEND_PORT || process.env.VITE_PORT || 3000);
+
+// Use a distinct port for Python backend to prevent port collisions if Railway sets PORT=8000
+const BACKEND_INTERNAL_PORT = PORT === 8000 ? 8001 : 8000;
+const RAG_BACKEND_URL = process.env.RAG_BACKEND_URL || `http://127.0.0.1:${BACKEND_INTERNAL_PORT}`;
 
 function getAiClient(): GoogleGenAI | null {
   const key = process.env.GEMINI_API_KEY?.trim();
@@ -256,8 +262,6 @@ async function startSarvamVoiceSession(clientWs: any, language: string, jurisdic
 
 async function startServer() {
   const app = express();
-  // Frontend runs on port 3000 by default; avoids colliding with Python backend on 8000
-  const PORT = Number(process.env.FRONTEND_PORT || process.env.VITE_PORT || (process.env.PORT && process.env.PORT !== "8000" ? process.env.PORT : 3000));
   const server = http.createServer(app);
 
   // WebSocket Server for Live Voice Assistant
@@ -379,7 +383,20 @@ RULES:
 
   app.use(express.json());
 
-  const RAG_BACKEND_URL = process.env.RAG_BACKEND_URL || "http://127.0.0.1:8000";
+  app.get("/api/health", async (req, res) => {
+    let backendOk = false;
+    try {
+      const r = await fetch(`${RAG_BACKEND_URL}/api/health`, { signal: AbortSignal.timeout(2000) });
+      backendOk = r.ok;
+    } catch {}
+    return res.json({
+      status: "ok",
+      node: true,
+      python_backend: backendOk,
+      port: PORT,
+      rag_backend_url: RAG_BACKEND_URL
+    });
+  });
 
   app.post("/api/gemini/chat", async (req, res) => {
     try {
@@ -514,7 +531,47 @@ RULES:
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT} and http://127.0.0.1:${PORT}`);
+    startPythonBackend(BACKEND_INTERNAL_PORT);
   });
+}
+
+function startPythonBackend(targetPort: number) {
+  const backendUrl = process.env.RAG_BACKEND_URL || `http://127.0.0.1:${targetPort}`;
+  if (!backendUrl.includes("127.0.0.1") && !backendUrl.includes("localhost")) {
+    console.log(`[Backend] External RAG backend configured at ${backendUrl}`);
+    return;
+  }
+
+  fetch(`${backendUrl}/api/health`, { signal: AbortSignal.timeout(2000) })
+    .then((r) => {
+      if (r.ok) {
+        console.log(`[Backend] Python RAG backend is already active at ${backendUrl}`);
+      } else {
+        throw new Error(`Health status ${r.status}`);
+      }
+    })
+    .catch(() => {
+      console.log(`[Backend] Spawning Python RAG backend on internal port ${targetPort}...`);
+      const pyCmd = process.platform === "win32" ? "python" : "python3";
+      const pyProc = spawn(pyCmd, ["backend/main.py"], {
+        stdio: "inherit",
+        env: {
+          ...process.env,
+          HOST: "0.0.0.0",
+          BACKEND_PORT: String(targetPort),
+          PYTHON_PORT: String(targetPort),
+          PORT: String(targetPort),
+        },
+      });
+
+      pyProc.on("error", (err) => {
+        console.warn(`[Backend] Auto-spawn notice: could not run ${pyCmd} (${err.message}). If using external backend, set RAG_BACKEND_URL.`);
+      });
+
+      pyProc.on("exit", (code, signal) => {
+        console.log(`[Backend] Python process ended (code: ${code}, signal: ${signal})`);
+      });
+    });
 }
 
 startServer();
