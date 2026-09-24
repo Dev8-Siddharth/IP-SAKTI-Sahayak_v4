@@ -32,6 +32,28 @@ if sys.platform == "win32":
         sys.stderr.reconfigure(encoding="utf-8")
     except Exception:
         pass
+elif sys.platform.startswith("linux"):
+    import glob
+    import ctypes
+    nix_lib_dirs = ["/root/.nix-profile/lib", "/usr/lib", "/usr/local/lib", "/lib", "/lib64"]
+    candidates = (
+        glob.glob("/root/.nix-profile/lib/libstdc++.so*") +
+        glob.glob("/nix/store/*gcc*/lib/libstdc++.so*") +
+        glob.glob("/nix/store/*stdenv*/lib/libstdc++.so*") +
+        glob.glob("/usr/lib*/libstdc++.so*")
+    )
+    for c in candidates:
+        d = os.path.dirname(c)
+        if d not in nix_lib_dirs:
+            nix_lib_dirs.append(d)
+        try:
+            ctypes.CDLL(c, mode=ctypes.RTLD_GLOBAL)
+            logging.info(f"Preloaded C++ shared library: {c}")
+            break
+        except Exception:
+            pass
+    curr_ld = os.environ.get("LD_LIBRARY_PATH", "")
+    os.environ["LD_LIBRARY_PATH"] = ":".join(nix_lib_dirs) + (":" + curr_ld if curr_ld else "")
 
 from rag_service import (
     generate_rag_response, 

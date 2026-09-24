@@ -16,7 +16,29 @@ import os
 import re
 import json
 import logging
-from typing import Dict, List, Any, Optional
+import sys
+if sys.platform.startswith("linux"):
+    import glob
+    import ctypes
+    nix_lib_dirs = ["/root/.nix-profile/lib", "/usr/lib", "/usr/local/lib", "/lib", "/lib64"]
+    candidates = (
+        glob.glob("/root/.nix-profile/lib/libstdc++.so*") +
+        glob.glob("/nix/store/*gcc*/lib/libstdc++.so*") +
+        glob.glob("/nix/store/*stdenv*/lib/libstdc++.so*") +
+        glob.glob("/usr/lib*/libstdc++.so*")
+    )
+    for c in candidates:
+        d = os.path.dirname(c)
+        if d not in nix_lib_dirs:
+            nix_lib_dirs.append(d)
+        try:
+            ctypes.CDLL(c, mode=ctypes.RTLD_GLOBAL)
+            break
+        except Exception:
+            pass
+    curr_ld = os.environ.get("LD_LIBRARY_PATH", "")
+    os.environ["LD_LIBRARY_PATH"] = ":".join(nix_lib_dirs) + (":" + curr_ld if curr_ld else "")
+
 import numpy as np
 from dotenv import load_dotenv
 

@@ -6,6 +6,7 @@ import { WebSocketServer } from "ws";
 import http from "http";
 import dotenv from "dotenv";
 import { spawn } from "child_process";
+import fs from "fs";
 
 dotenv.config();
 
@@ -513,15 +514,16 @@ RULES:
   });
 
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  const distPath = path.join(process.cwd(), 'dist');
+  const isProduction = process.env.NODE_ENV === "production" || fs.existsSync(path.join(distPath, 'index.html'));
+
+  if (!isProduction) {
     const vite = await createViteServer({
-      server: { middlewareMode: true, hmr: { server } },
+      server: { middlewareMode: true, hmr: { server }, allowedHosts: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     // Express 4 uses * for catch-all
     app.get('*', (req, res) => {
@@ -553,6 +555,15 @@ function startPythonBackend(targetPort: number) {
     .catch(() => {
       console.log(`[Backend] Spawning Python RAG backend on internal port ${targetPort}...`);
       const pyCmd = process.platform === "win32" ? "python" : "python3";
+      const ldPaths = [
+        "/root/.nix-profile/lib",
+        "/usr/lib",
+        "/usr/local/lib",
+        "/lib",
+        "/lib64",
+        process.env.LD_LIBRARY_PATH || ""
+      ].filter(Boolean).join(":");
+
       const pyProc = spawn(pyCmd, ["backend/main.py"], {
         stdio: "inherit",
         env: {
@@ -561,6 +572,7 @@ function startPythonBackend(targetPort: number) {
           BACKEND_PORT: String(targetPort),
           PYTHON_PORT: String(targetPort),
           PORT: String(targetPort),
+          LD_LIBRARY_PATH: ldPaths,
         },
       });
 
