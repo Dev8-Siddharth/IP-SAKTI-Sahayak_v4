@@ -42,10 +42,6 @@ if sys.platform.startswith("linux"):
 import numpy as np
 from dotenv import load_dotenv
 
-# Enforce offline mode for HuggingFace to eliminate remote HEAD requests on startup
-os.environ["HF_HUB_OFFLINE"] = "1"
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
-
 import chromadb
 from rank_bm25 import BM25Okapi
 from google import genai
@@ -116,42 +112,48 @@ parents_registry: Dict[str, Any] = corpus_data.get("parents", {})
 children_registry: List[Dict[str, Any]] = corpus_data.get("children", [])
 child_by_id = {c["child_id"]: c for c in children_registry}
 
-logging.info(f"Connecting to ChromaDB at: {CHROMA_PERSIST_DIR}")
-chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
 try:
-    collection = chroma_client.get_collection(name="ayush_statutes")
-except Exception:
-    collection = chroma_client.create_collection(name="ayush_statutes")
-
-if collection.count() != len(children_registry) and children_registry:
-    logging.info(f"Synchronizing ChromaDB collection 'ayush_statutes' with {len(children_registry)} chunks...")
+    chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
     try:
-        chroma_client.delete_collection("ayush_statutes")
+        collection = chroma_client.get_collection(name="ayush_statutes")
     except Exception:
-        pass
-    collection = chroma_client.create_collection(name="ayush_statutes")
-    ids = [c["child_id"] for c in children_registry]
-    documents = [c["text"] for c in children_registry]
-    metadatas = [
-        {
-            "parent_id": str(c.get("parent_id", "")),
-            "section": str(c.get("section_or_form", "")),
-            "act_or_database": str(c.get("act_or_database", "")),
-            "jurisdiction": str(c.get("jurisdiction", "India")),
-            "act_scope": str(c.get("act_scope", "Central")),
-            "state_name": str(c.get("state_name", "CENTRAL")),
-            "source_url": str(c.get("source_url", ""))
-        }
-        for c in children_registry
-    ]
-    embeddings = bi_encoder.encode(documents).tolist()
-    collection.add(
-        ids=ids,
-        documents=documents,
-        metadatas=metadatas,
-        embeddings=embeddings
-    )
-    logging.info(f"Successfully populated ChromaDB collection with {collection.count()} chunks.")
+        collection = chroma_client.create_collection(name="ayush_statutes")
+
+    if bi_encoder is not None and collection.count() != len(children_registry) and children_registry:
+        logging.info(f"Synchronizing ChromaDB collection 'ayush_statutes' with {len(children_registry)} chunks...")
+        try:
+            chroma_client.delete_collection("ayush_statutes")
+        except Exception:
+            pass
+        collection = chroma_client.create_collection(name="ayush_statutes")
+        ids = [c["child_id"] for c in children_registry]
+        documents = [c["text"] for c in children_registry]
+        metadatas = [
+            {
+                "parent_id": str(c.get("parent_id", "")),
+                "section": str(c.get("section_or_form", "")),
+                "act_or_database": str(c.get("act_or_database", "")),
+                "jurisdiction": str(c.get("jurisdiction", "India")),
+                "act_scope": str(c.get("act_scope", "Central")),
+                "state_name": str(c.get("state_name", "CENTRAL")),
+                "source_url": str(c.get("source_url", ""))
+            }
+            for c in children_registry
+        ]
+        try:
+            embeddings = bi_encoder.encode(documents).tolist()
+            collection.add(
+                ids=ids,
+                documents=documents,
+                metadatas=metadatas,
+                embeddings=embeddings
+            )
+            logging.info(f"Successfully populated ChromaDB collection with {collection.count()} chunks.")
+        except Exception as embed_err:
+            logging.warning(f"Vector embedding calculation failed ({embed_err}). BM25 will be used for retrieval.")
+except Exception as chroma_err:
+    logging.warning(f"ChromaDB persistent client unavailable ({chroma_err}). Using in-memory BM25 retrieval.")
+    collection = None
 
 # Initialize BM25 index on child chunks
 tokenized_corpus = [c["text"].lower().split() for c in children_registry]
@@ -170,7 +172,7 @@ def retrieve_hybrid_candidates(query: str, top_y: int = 10, jurisdiction: Option
     """
     # 1. Bi-encoder vector search
     vector_hits = {}
-    if bi_encoder is not None:
+    if bi_encoder is not None and collection is not None:
         try:
             query_vector = bi_encoder.encode([query])[0].tolist()
             chroma_results = collection.query(
