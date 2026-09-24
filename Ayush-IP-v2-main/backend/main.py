@@ -212,11 +212,8 @@ def sample_citations():
     return {"sample_citations": samples}
 
 if __name__ == "__main__":
-    host = os.getenv("HOST", "127.0.0.1")
-    port = int(os.getenv("PORT", "8000"))
-    logging.info(f"Starting AyushIP FastAPI Server on http://{host}:{port}...")
     host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("BACKEND_PORT", os.getenv("PYTHON_PORT", "8000")))
+    port = int(os.getenv("BACKEND_PORT", os.getenv("PYTHON_PORT", "8001")))
     logging.info(f"Starting IP-SAKTI Sahayak FastAPI Server on http://{host}:{port}...")
     uvicorn.run(app, host=host, port=port)
 
