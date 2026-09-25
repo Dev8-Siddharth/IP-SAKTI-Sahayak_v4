@@ -17,6 +17,20 @@ const PORT = Number(process.env.PORT || 8000);
 const BACKEND_INTERNAL_PORT = PORT === 8000 ? 8001 : 8000;
 const RAG_BACKEND_URL = process.env.RAG_BACKEND_URL || `http://127.0.0.1:${BACKEND_INTERNAL_PORT}`;
 
+// Load official statutory parent registry directly in Node for instant statutory reading
+let corpusParents: Record<string, any> = {};
+try {
+  const corpusPath = path.join(process.cwd(), 'data', 'corpus', 'corpus_data.json');
+  if (fs.existsSync(corpusPath)) {
+    const raw = fs.readFileSync(corpusPath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    corpusParents = parsed.parents || {};
+    console.log(`[Corpus] Loaded ${Object.keys(corpusParents).length} statutory parent texts in Node.`);
+  }
+} catch (e) {
+  console.warn('[Corpus] Could not load corpus_data.json:', e);
+}
+
 function getAiClient(): GoogleGenAI | null {
   const key = process.env.GEMINI_API_KEY?.trim();
   if (key && key.length > 5) {
@@ -464,30 +478,36 @@ Include clear sections, legal provisions, and ABS compliance checklists.`
             answer: fallbackResp.text || "Guidance generated with core statutory knowledge.",
             citations: [
               {
+                parent_id: "parent_bda_sec_7",
                 source: "Biological Diversity Act 2002 / Amendment 2023 - Section 7 / Section 40",
                 sectionRef: "Section 7 / Section 40",
                 portal: "National Biodiversity Authority (NBA)",
-                url: "http://nbaindia.nic.in/content/26/59/1/forms.html",
-                official_pdf_url: "https://nbaindia.org/uploaded/act/BiologicalDiversityAct2002.pdf",
+                url: "https://www.nbaindia.nic.in/application-form/form-application-fee",
+                official_pdf_url: "https://www.nbaindia.nic.in/sites/default/files/2026-07/imp_formIII.pdf",
                 url_precision: "section-level",
                 effective_date: "2023-08-03",
                 jurisdiction: "India",
                 verified: true,
                 verification_mechanism: "Direct Statutory Framework",
-                status: "VERIFIED"
+                status: "VERIFIED",
+                exactTextSnippet: "Provided that the provisions of this section shall not apply to the codified traditional knowledge, cultivated medicinal plants and its products, local people and communities of the area, including growers and cultivators of biodiversity and to vaids, hakims and registered AYUSH practitioners only who have been practicing indigenous medicines, including Indian systems of medicine as profession for sustenance and livelihood.",
+                parent_text: corpusParents["parent_bda_sec_7"]?.full_text || "Biological Diversity Act 2002 (as amended by Biological Diversity (Amendment) Act 2023) - Section 7: Prior intimation to State Biodiversity Board for accessing biological resource for certain purposes.\n\n(1) No person, other than the person covered under sub-section (2) of section 3, shall access any biological resource and its associated knowledge for commercial utilisation, without giving prior intimation to the concerned State Biodiversity Board, but such access shall be subject to the provisions of clause (b) of section 23 and sub-section (2) of section 24:\n\nProvided that the provisions of this section shall not apply to the codified traditional knowledge, cultivated medicinal plants and its products, local people and communities of the area, including growers and cultivators of biodiversity and to vaids, hakims and registered AYUSH practitioners only who have been practicing indigenous medicines, including Indian systems of medicine as profession for sustenance and livelihood.\n\n(2) In the case of cultivated medicinal plants, the exemption under sub-section (1) shall be available only if a certificate of origin is obtained from the Biodiversity Management Committee in such manner as may be prescribed.\n\n(3) The Biodiversity Management Committee shall, on the basis of entries made in such books, maintained in such manner, issue the certificate of origin under subsection (2) in such manner as may be prescribed."
               },
               {
-                source: "Indian Patents Act 1970 - Section 3(p)",
+                parent_id: "parent_patents_act_sec_3",
+                source: "Indian Patents Act 1970 - Section 3(p) / Section 3(d)",
                 sectionRef: "Section 3(p)",
                 portal: "IP India Patent Office",
-                url: "https://ipindia.gov.in/patents.htm",
-                official_pdf_url: "https://ipindia.gov.in/writereaddata/Portal/IPOAct/1_31_1_patent-act-1970-11march2015.pdf",
+                url: "https://ipindia.gov.in/resource/the-patents-act-1970.htm",
+                official_pdf_url: "https://ipindia.gov.in/storage/uploads/pages/pdfs/5peXVNWVbdtQkwLG4Dlo0AUE6SQ8ueAEXZFRGQg6.pdf",
                 url_precision: "section-level",
-                effective_date: "1970-09-19",
+                effective_date: "2024-03-15",
                 jurisdiction: "India",
                 verified: true,
                 verification_mechanism: "Direct Statutory Framework",
-                status: "VERIFIED"
+                status: "VERIFIED",
+                exactTextSnippet: "an invention which, in effect, is traditional knowledge or which is an aggregation or duplication of known properties of traditionally known component or components.",
+                parent_text: corpusParents["parent_patents_act_sec_3"]?.full_text || "The following are not inventions within the meaning of this Act,-- (a) an invention which is frivolous or which claims anything obviously contrary to well established natural laws; (b) an invention the primary or intended use or commercial exploitation of which would be contrary to public order or morality or which causes serious prejudice to human, animal or plant life or health or to the environment; (c) the mere discovery of a scientific principle or the formulation of an abstract theory; (d) the mere discovery of a new form of a known substance which does not result in the enhancement of the known efficacy of that substance or the mere discovery of any new property or new use for a known substance or of the mere use of a known process, machine or apparatus unless such known process results in a new product or employs at least one new reactant... (p) an invention which, in effect, is traditional knowledge or which is an aggregation or duplication of known properties of traditionally known component or components."
               }
             ],
             confidence: "HIGH",
@@ -521,25 +541,29 @@ Include clear sections, legal provisions, and ABS compliance checklists.`
 
   app.get("/api/statutes", async (req, res) => {
     try {
-      const resp = await fetch(`${RAG_BACKEND_URL}/api/statutes`);
-      const data = await resp.json();
-      return res.json(data);
-    } catch (err: any) {
-      return res.status(500).json({ error: "Statutes directory unavailable: " + (err.message || err) });
-    }
+      const resp = await fetch(`${RAG_BACKEND_URL}/api/statutes`, { signal: AbortSignal.timeout(1500) });
+      if (resp.ok) {
+        const data = await resp.json();
+        return res.json(data);
+      }
+    } catch {}
+    return res.json({
+      statutes: Object.values(corpusParents),
+      count: Object.keys(corpusParents).length
+    });
   });
 
   app.get("/api/statutes/:parent_id", async (req, res) => {
     try {
-      const resp = await fetch(`${RAG_BACKEND_URL}/api/statutes/${encodeURIComponent(req.params.parent_id)}`);
-      if (!resp.ok) {
-        return res.status(resp.status).json({ error: "Statutory document not found" });
+      const resp = await fetch(`${RAG_BACKEND_URL}/api/statutes/${encodeURIComponent(req.params.parent_id)}`, { signal: AbortSignal.timeout(1500) });
+      if (resp.ok) {
+        const data = await resp.json();
+        return res.json(data);
       }
-      const data = await resp.json();
-      return res.json(data);
-    } catch (err: any) {
-      return res.status(500).json({ error: "Statute service unavailable: " + (err.message || err) });
-    }
+    } catch {}
+    const p = corpusParents[req.params.parent_id];
+    if (p) return res.json(p);
+    return res.status(404).json({ error: "Statutory document not found" });
   });
 
   app.post("/api/abs/check", async (req, res) => {
