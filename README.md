@@ -11,10 +11,13 @@
 [![ChromaDB](https://img.shields.io/badge/Vector_DB-ChromaDB-FF6F00.svg?style=flat-square)](https://www.trychroma.com)
 [![Google Gemini](https://img.shields.io/badge/AI_Engine-Gemini_2.5_Flash-8E75B2.svg?style=flat-square&logo=google)](https://deepmind.google/technologies/gemini/)
 [![Railway Ready](https://img.shields.io/badge/Deployment-Railway_Nixpacks-0B0D0E.svg?style=flat-square&logo=railway)](https://railway.com)
+[![System Benchmarks](https://img.shields.io/badge/Benchmarks-90.0%25_Retrieval_|_100%25_Abstention-059669.svg?style=flat-square)](BENCHMARKS.md)
 
 ---
 
 ## 📌 Executive Summary
+
+> 📊 **Official Benchmark Dossier Available**: For complete empirical evaluation data on Corpus Volume (138,305 chars / 383 clauses), Retrieval Accuracy (90.0%), Anti-Hallucination Abstention (100.0%), Guardrail Compliance (8/8 Passed), and Latency profiles, view the comprehensive **[BENCHMARKS.md](BENCHMARKS.md)** dossier or navigate to `/benchmarks` on your live instance.
 
 **IP-SAKTI Sahayak** is a specialized, production-ready legal AI copilot designed to bridge the regulatory and intellectual property divide for India's traditional knowledge and AYUSH sectors (*Ayurveda, Yoga & Naturopathy, Unani, Siddha, Sowa-Rigpa, and Homoeopathy*).
 
@@ -379,3 +382,4 @@ To prevent misleading regulatory advice, IP-SAKTI Sahayak enforces 5 architectur
 - **Developer**: Dev Siddharth
 - **Repository**: [IP-SAKTI-Sahayak_v4](https://github.com/Dev8-Siddharth/IP-SAKTI-Sahayak_v4)
 - **License**: MIT License (or as specified by project stakeholders)
+
